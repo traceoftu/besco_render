@@ -18,7 +18,7 @@ class OrderBase(BaseModel):
     customer_name: str
     material_id: int
     quantity: float
-    order_date: Union[datetime, str]
+    order_date: Union[datetime, date, str]
     price_per_kg: float
     total_price: Optional[float] = None
 
