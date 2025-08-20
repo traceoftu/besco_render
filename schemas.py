@@ -86,9 +86,16 @@ class MaterialPurchaseBase(BaseModel):
 class MaterialPurchaseCreate(MaterialPurchaseBase):
     pass
 
-class MaterialPurchase(MaterialPurchaseBase):
+class MaterialPurchase(BaseModel):
     id: int
+    material_id: int
     material_name: Optional[str] = None
+    quantity_kg: float
+    price_per_kg: float
+    total_price: Optional[float] = None
+    purchase_date: datetime
+    supplier: Optional[str] = None
+    note: Optional[str] = None
     created_at: datetime
 
     class Config:
