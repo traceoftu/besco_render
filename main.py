@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text
 from typing import List, Dict
 from datetime import datetime, timedelta
 import models
@@ -183,7 +183,7 @@ def update_inventory_quantities(materials: List[dict], is_increase: bool, db: Se
                 )
             
             inventory.quantity = new_quantity
-            inventory.updated_at = func.now()
+            inventory.updated_at = text('NOW()')
             
     except Exception as e:
         db.rollback()
@@ -214,7 +214,7 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
             price_per_kg=order.price_per_kg,
             total_price=order.quantity * order.price_per_kg,
             order_date=order_date,
-            created_at=func.now()
+            created_at=text('NOW()')
         )
         db.add(db_order)
         
@@ -323,8 +323,8 @@ def create_material(material: schemas.MaterialCreate, db: Session = Depends(get_
             type=material.type,
             unit=material.unit,
             processing_ratio=material.processing_ratio,
-            created_at=func.now(),
-            updated_at=func.now(),
+            created_at=text('NOW()'),
+            updated_at=text('NOW()'),
         )
         db.add(db_material)
         db.flush()  # ID 생성을 위해 flush
@@ -430,7 +430,7 @@ def update_material(material_id: int, body: dict = Body(...), db: Session = Depe
         if "processing_ratio" in body:
             db_material.processing_ratio = float(body["processing_ratio"])
 
-        db_material.updated_at = func.now()
+        db_material.updated_at = text('NOW()')
         db.commit()
         db.refresh(db_material)
         return db_material
@@ -448,7 +448,7 @@ def update_material_ratio(material_id: int, processing_ratio: float = Body(..., 
             raise HTTPException(status_code=404, detail="Material not found")
 
         db_material.processing_ratio = processing_ratio
-        db_material.updated_at = func.now()
+        db_material.updated_at = text('NOW()')
         db.commit()
         
         return {"message": "Material ratio updated successfully"}
@@ -553,7 +553,7 @@ def delete_purchase(purchase_id: int, db: Session = Depends(get_db)):
     inventory = db.query(models.Inventory).filter(models.Inventory.material_id == purchase.material_id).first()
     if inventory:
         inventory.quantity = max(0, inventory.quantity - purchase.quantity_kg)
-        inventory.updated_at = datetime.now()
+        inventory.updated_at = text('NOW()')
         db.add(inventory)
     
     db.delete(purchase)
@@ -609,7 +609,7 @@ def update_inventory_quantity(inventory_id: int, quantity: float = Body(..., emb
             raise HTTPException(status_code=404, detail="Inventory not found")
 
         db_inventory.quantity = quantity
-        db_inventory.updated_at = func.now()
+        db_inventory.updated_at = text('NOW()')
         db.commit()
         
         return {"message": "Inventory quantity updated successfully"}
