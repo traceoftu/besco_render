@@ -183,7 +183,7 @@ def update_inventory_quantities(materials: List[dict], is_increase: bool, db: Se
                 )
             
             inventory.quantity = new_quantity
-            inventory.updated_at = text('NOW()')
+            inventory.updated_at = func.now()
             
     except Exception as e:
         db.rollback()
@@ -214,7 +214,7 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
             price_per_kg=order.price_per_kg,
             total_price=order.quantity * order.price_per_kg,
             order_date=order_date,
-            created_at=text('NOW()')
+            created_at=func.now()
         )
         db.add(db_order)
         
@@ -323,8 +323,8 @@ def create_material(material: schemas.MaterialCreate, db: Session = Depends(get_
             type=material.type,
             unit=material.unit,
             processing_ratio=material.processing_ratio,
-            created_at=text('NOW()'),
-            updated_at=text('NOW()'),
+            created_at=func.now(),
+            updated_at=func.now(),
         )
         db.add(db_material)
         db.flush()  # ID 생성을 위해 flush
@@ -609,7 +609,7 @@ def update_inventory_quantity(inventory_id: int, quantity: float = Body(..., emb
             raise HTTPException(status_code=404, detail="Inventory not found")
 
         db_inventory.quantity = quantity
-        db_inventory.updated_at = text('NOW()')
+        db_inventory.updated_at = func.now()
         db.commit()
         
         return {"message": "Inventory quantity updated successfully"}
