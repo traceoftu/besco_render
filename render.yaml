@@ -2,6 +2,7 @@ services:
   - type: web
     name: besco-api
     env: python
+    runtime: python-3.9.18
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
