@@ -12,7 +12,7 @@ class Customer(CustomerBase):
     id: int
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class OrderBase(BaseModel):
     customer_name: str
@@ -31,7 +31,7 @@ class Order(OrderBase):
     created_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
         
     def dict(self, *args, **kwargs):
         d = super().dict(*args, **kwargs)
@@ -55,7 +55,7 @@ class BlendComponent(BlendComponentBase):
     updated_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class MaterialBase(BaseModel):
     name: str
@@ -72,7 +72,6 @@ class Material(MaterialBase):
     updated_at: datetime
 
     class Config:
-        from_attributes = True
         orm_mode = True
 
 class MaterialPurchaseBase(BaseModel):
@@ -93,7 +92,7 @@ class MaterialPurchase(MaterialPurchaseBase):
     created_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class InventoryBase(BaseModel):
     material_id: int
@@ -109,7 +108,7 @@ class Inventory(InventoryBase):
     updated_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class InventoryUpdate(BaseModel):
     quantity: Optional[float] = None
