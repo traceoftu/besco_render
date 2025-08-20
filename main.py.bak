@@ -1,0 +1,122 @@
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+from typing import List
+from database import get_db, engine
+import models
+import schemas
+from datetime import datetime, date
+
+app = FastAPI()
+
+# 데이터베이스 테이블 생성
+models.Base.metadata.create_all(bind=engine)
+
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to BESCO API"}
+
+# Customer endpoints
+@app.post("/customers/", response_model=schemas.Customer)
+def create_customer(customer: schemas.CustomerCreate, db: Session = Depends(get_db)):
+    db_customer = models.Customer(**customer.dict())
+    db.add(db_customer)
+    db.commit()
+    db.refresh(db_customer)
+    return db_customer
+
+@app.get("/customers/", response_model=List[schemas.Customer])
+def read_customers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    customers = db.query(models.Customer).offset(skip).limit(limit).all()
+    return customers
+
+# Order endpoints
+@app.post("/orders/", response_model=schemas.Order)
+def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
+    db_order = models.Order(**order.dict())
+    db.add(db_order)
+    db.commit()
+    db.refresh(db_order)
+    return db_order
+
+@app.get("/orders/", response_model=List[schemas.Order])
+def read_orders(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    orders = db.query(models.Order).offset(skip).limit(limit).all()
+    return orders
+
+@app.get("/orders/date/{date}", response_model=List[schemas.Order])
+def read_orders_by_date(date: date, db: Session = Depends(get_db)):
+    orders = db.query(models.Order).filter(models.Order.order_date == date).all()
+    return orders
+
+# Inventory endpoints
+@app.post("/inventory/", response_model=schemas.Inventory)
+def create_inventory(inventory: schemas.InventoryCreate, db: Session = Depends(get_db)):
+    db_inventory = models.Inventory(**inventory.dict())
+    db.add(db_inventory)
+    db.commit()
+    db.refresh(db_inventory)
+    return db_inventory
+
+@app.get("/inventory/", response_model=List[schemas.Inventory])
+def read_inventory(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    inventory = db.query(models.Inventory).offset(skip).limit(limit).all()
+    return inventory
+
+@app.put("/inventory/{inventory_id}", response_model=schemas.Inventory)
+def update_inventory(inventory_id: int, inventory: schemas.InventoryCreate, db: Session = Depends(get_db)):
+    db_inventory = db.query(models.Inventory).filter(models.Inventory.id == inventory_id).first()
+    if not db_inventory:
+        raise HTTPException(status_code=404, detail="Inventory not found")
+    
+    for key, value in inventory.dict().items():
+        setattr(db_inventory, key, value)
+    
+    db.commit()
+    db.refresh(db_inventory)
+    return db_inventory
+
+# Material Purchase endpoints
+@app.post("/material-purchases/", response_model=schemas.MaterialPurchase)
+def create_material_purchase(purchase: schemas.MaterialPurchaseCreate, db: Session = Depends(get_db)):
+    db_purchase = models.MaterialPurchase(**purchase.dict())
+    db.add(db_purchase)
+    db.commit()
+    db.refresh(db_purchase)
+    return db_purchase
+
+@app.get("/material-purchases/", response_model=List[schemas.MaterialPurchase])
+def read_material_purchases(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    purchases = db.query(models.MaterialPurchase).offset(skip).limit(limit).all()
+    return purchases
+
+# Product Type endpoints
+@app.post("/product-types/", response_model=schemas.ProductType)
+def create_product_type(product_type: schemas.ProductTypeCreate, db: Session = Depends(get_db)):
+    db_product_type = models.ProductType(**product_type.dict())
+    db.add(db_product_type)
+    db.commit()
+    db.refresh(db_product_type)
+    return db_product_type
+
+@app.get("/product-types/", response_model=List[schemas.ProductType])
+def read_product_types(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    product_types = db.query(models.ProductType).offset(skip).limit(limit).all()
+    return product_types
+
+# Product Composition endpoints
+@app.post("/product-compositions/", response_model=schemas.ProductComposition)
+def create_product_composition(composition: schemas.ProductCompositionCreate, db: Session = Depends(get_db)):
+    db_composition = models.ProductComposition(**composition.dict())
+    db.add(db_composition)
+    db.commit()
+    db.refresh(db_composition)
+    return db_composition
+
+@app.get("/product-compositions/{product_id}", response_model=List[schemas.ProductComposition])
+def read_product_compositions(product_id: int, db: Session = Depends(get_db)):
+    compositions = db.query(models.ProductComposition).filter(models.ProductComposition.product_id == product_id).all()
+    return compositions
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
