@@ -461,8 +461,14 @@ def update_material_ratio(material_id: int, processing_ratio: float = Body(..., 
 @app.get("/material-purchases/", response_model=List[schemas.MaterialPurchase])
 def get_material_purchases(db: Session = Depends(get_db)):
     try:
-        return db.query(models.MaterialPurchase).order_by(models.MaterialPurchase.purchase_date.desc()).all()
+        purchases = db.query(models.MaterialPurchase).order_by(models.MaterialPurchase.purchase_date.desc()).all()
+        # 디버깅을 위한 로그
+        print(f"Found {len(purchases)} purchases")
+        if purchases:
+            print(f"First purchase: {purchases[0].__dict__}")
+        return purchases
     except Exception as e:
+        print(f"Error in get_material_purchases: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/material-purchases/", response_model=schemas.MaterialPurchase)
