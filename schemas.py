@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, Union, List
 
 class CustomerBase(BaseModel):
@@ -93,7 +93,7 @@ class MaterialPurchase(BaseModel):
     quantity_kg: float
     price_per_kg: float
     total_price: Optional[float] = None
-    purchase_date: datetime
+    purchase_date: Union[datetime, date]
     supplier: Optional[str] = None
     note: Optional[str] = None
     created_at: datetime
