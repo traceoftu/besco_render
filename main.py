@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, Body
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text
 from typing import List, Dict
@@ -10,8 +11,25 @@ import uvicorn
 from datetime import timedelta
 from app.routers import analytics
 import os
+from auth import verify_api_key
+from dotenv import load_dotenv
 
-app = FastAPI(title="BESCO API")
+load_dotenv()
+
+app = FastAPI(
+    title="BESCO API",
+    description="Coffee Bean Management System",
+    version="1.0.0"
+)
+
+# CORS 설정
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 프로덕션에서는 특정 도메인으로 제한
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # 시작 시 테이블 생성
 models.Base.metadata.create_all(bind=engine)
@@ -19,20 +37,24 @@ models.Base.metadata.create_all(bind=engine)
 # 라우터 등록
 app.include_router(analytics.router)
 
+# 인증 라우터 등록
+from auth_routes import router as auth_router
+app.include_router(auth_router)
+
 @app.get("/")
 def read_root():
     return {"message": "BESCO API Server"}
 
-# Customer endpoints
+# Customer endpoints (보안 적용)
 @app.get("/customers/", response_model=List[schemas.Customer])
-def get_customers(db: Session = Depends(get_db)):
+def get_customers(db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         return db.query(models.Customer).all()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/customers/", response_model=schemas.Customer)
-def create_customer(customer: schemas.CustomerCreate, db: Session = Depends(get_db)):
+def create_customer(customer: schemas.CustomerCreate, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         db_customer = db.query(models.Customer).filter(models.Customer.name == customer.name).first()
         if db_customer:
@@ -47,7 +69,7 @@ def create_customer(customer: schemas.CustomerCreate, db: Session = Depends(get_
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/customers/{name}")
-def delete_customer(name: str, db: Session = Depends(get_db)):
+def delete_customer(name: str, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         db_customer = db.query(models.Customer).filter(models.Customer.name == name).first()
         if not db_customer:
@@ -66,7 +88,8 @@ def get_orders(
     customer_name: str = None,
     start_date: str = None,
     end_date: str = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    api_key: str = Depends(verify_api_key)
 ):
     try:
         query = db.query(models.Order)
@@ -190,7 +213,7 @@ def update_inventory_quantities(materials: List[dict], is_increase: bool, db: Se
         raise HTTPException(status_code=500, detail=f"재고 업데이트 중 오류 발생: {str(e)}")
 
 @app.post("/orders/", status_code=201, response_model=schemas.Order)
-def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
+def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         # 필요 자재 계산 및 재고 확인
         required_materials = calculate_required_materials(order.material_id, order.quantity, db)
@@ -233,7 +256,7 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/orders/{order_id}")
-def delete_order(order_id: int, db: Session = Depends(get_db)):
+def delete_order(order_id: int, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         # 주문 조회
         order = db.query(models.Order).filter(models.Order.id == order_id).first()
@@ -258,7 +281,7 @@ def delete_order(order_id: int, db: Session = Depends(get_db)):
 
 # Material endpoints
 @app.get("/materials/", response_model=List[schemas.Material])
-def get_materials(db: Session = Depends(get_db)):
+def get_materials(db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         materials = db.query(models.Material).all()
         result = []
@@ -280,7 +303,7 @@ def get_materials(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/materials/{material_id}")
-def get_material_by_id_endpoint(material_id: int, db: Session = Depends(get_db)):
+def get_material_by_id_endpoint(material_id: int, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         material = db.query(models.Material).filter(models.Material.id == material_id).first()
         if not material:
@@ -315,7 +338,7 @@ def get_material_by_id_endpoint(material_id: int, db: Session = Depends(get_db))
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/materials/", response_model=schemas.Material)
-def create_material(material: schemas.MaterialCreate, db: Session = Depends(get_db)):
+def create_material(material: schemas.MaterialCreate, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         # 자재 생성
         db_material = models.Material(
@@ -355,7 +378,7 @@ def create_material(material: schemas.MaterialCreate, db: Session = Depends(get_
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/materials/{material_id}/components", response_model=List[schemas.BlendComponent])
-def get_blend_components(material_id: int, db: Session = Depends(get_db)):
+def get_blend_components(material_id: int, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     """블렌드 자재의 컴포넌트 조회"""
     try:
         material = db.query(models.Material).filter(models.Material.id == material_id).first()
@@ -377,7 +400,8 @@ def get_blend_components(material_id: int, db: Session = Depends(get_db)):
 def update_blend_components(
     material_id: int, 
     components: List[schemas.BlendComponentCreate], 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    api_key: str = Depends(verify_api_key)
 ):
     """블렌드 자재의 컴포넌트 업데이트"""
     try:
@@ -409,7 +433,7 @@ def update_blend_components(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/materials/{material_id}/", response_model=schemas.Material)
-def update_material(material_id: int, body: dict = Body(...), db: Session = Depends(get_db)):
+def update_material(material_id: int, body: dict = Body(...), db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         db_material = db.query(models.Material).filter(models.Material.id == material_id).first()
         if not db_material:
@@ -441,7 +465,7 @@ def update_material(material_id: int, body: dict = Body(...), db: Session = Depe
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/materials/{material_id}/ratio/")
-def update_material_ratio(material_id: int, processing_ratio: float = Body(..., embed=True), db: Session = Depends(get_db)):
+def update_material_ratio(material_id: int, processing_ratio: float = Body(..., embed=True), db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         db_material = db.query(models.Material).filter(models.Material.id == material_id).first()
         if not db_material:
@@ -459,7 +483,7 @@ def update_material_ratio(material_id: int, processing_ratio: float = Body(..., 
 
 # Material Purchase endpoints
 @app.get("/material-purchases/", response_model=List[schemas.MaterialPurchase])
-def get_material_purchases(db: Session = Depends(get_db)):
+def get_material_purchases(db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         purchases = db.query(models.MaterialPurchase).order_by(models.MaterialPurchase.purchase_date.desc()).all()
         # 디버깅을 위한 로그
@@ -472,7 +496,7 @@ def get_material_purchases(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/material-purchases/", response_model=schemas.MaterialPurchase)
-def create_material_purchase(purchase: schemas.MaterialPurchaseCreate, db: Session = Depends(get_db)):
+def create_material_purchase(purchase: schemas.MaterialPurchaseCreate, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         # 자재 확인
         db_material = db.query(models.Material).filter(models.Material.id == purchase.material_id).first()
@@ -526,7 +550,7 @@ def create_material_purchase(purchase: schemas.MaterialPurchaseCreate, db: Sessi
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/material-purchases/{purchase_id}")
-def delete_material_purchase(purchase_id: int, db: Session = Depends(get_db)):
+def delete_material_purchase(purchase_id: int, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         # 매입 정보 조회
         db_purchase = db.query(models.MaterialPurchase).filter(models.MaterialPurchase.id == purchase_id).first()
@@ -550,7 +574,7 @@ def delete_material_purchase(purchase_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.delete("/purchases/{purchase_id}/")
-def delete_purchase(purchase_id: int, db: Session = Depends(get_db)):
+def delete_purchase(purchase_id: int, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     purchase = db.query(models.MaterialPurchase).filter(models.MaterialPurchase.id == purchase_id).first()
     if not purchase:
         raise HTTPException(status_code=404, detail="매입 내역을 찾을 수 없습니다")
@@ -568,7 +592,7 @@ def delete_purchase(purchase_id: int, db: Session = Depends(get_db)):
 
 # Inventory endpoints
 @app.post("/migrate-inventory/")
-def migrate_inventory(db: Session = Depends(get_db)):
+def migrate_inventory(db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     """기존 자재의 재고 데이터 생성"""
     try:
         # 모든 자재 조회
@@ -598,7 +622,7 @@ def migrate_inventory(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/inventory/", response_model=List[schemas.Inventory])
-def get_inventory(db: Session = Depends(get_db)):
+def get_inventory(db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         # material 정보와 함께 조회
         inventories = db.query(models.Inventory).all()
@@ -608,7 +632,7 @@ def get_inventory(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/inventories/{inventory_id}/quantity/")
-def update_inventory_quantity(inventory_id: int, quantity: float = Body(..., embed=True), db: Session = Depends(get_db)):
+def update_inventory_quantity(inventory_id: int, quantity: float = Body(..., embed=True), db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         db_inventory = db.query(models.Inventory).filter(models.Inventory.id == inventory_id).first()
         if not db_inventory:
@@ -625,7 +649,7 @@ def update_inventory_quantity(inventory_id: int, quantity: float = Body(..., emb
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/bulk-create-orders/")
-def bulk_create_orders(db: Session = Depends(get_db)):
+def bulk_create_orders(db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     orders_data = [
         {"customer_name": "노원베스코", "order_date": "2024-01-03", "quantity": 30, "price_per_kg": 23000},
         {"customer_name": "더블브이", "order_date": "2024-01-09", "quantity": 30, "price_per_kg": 23000},
