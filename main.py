@@ -114,7 +114,7 @@ def get_orders(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def calculate_required_materials(material_id: int, quantity: float, db: Session) -> List[dict]:
+def calculate_required_materials(material_id: int, quantity: float, db: Session, check_inventory: bool = True) -> List[dict]:
     """자재 타입에 따른 필요 원재료 계산"""
     material = db.query(models.Material).filter(models.Material.id == material_id).first()
     if not material:
@@ -163,22 +163,23 @@ def calculate_required_materials(material_id: int, quantity: float, db: Session)
             "quantity": quantity
         })
     
-    # 재고 확인
-    for material in required_materials:
-        inventory = db.query(models.Inventory).filter(
-            models.Inventory.material_id == material["id"]
-        ).first()
-        
-        if not inventory:
-            raise HTTPException(status_code=404, detail=f"Material {material['id']}의 재고 정보를 찾을 수 없습니다")
-        
-        if inventory.quantity < material["quantity"]:
-            material_info = db.query(models.Material).get(material["id"])
-            material_name = material_info.name if material_info else f"Material {material['id']}"
-            raise HTTPException(
-                status_code=400, 
-                detail=f"{material_name}의 재고가 부족합니다 (필요: {material['quantity']:.1f}kg, 현재: {inventory.quantity:.1f}kg)"
-            )
+    # 재고 확인 (주문 생성 시에만)
+    if check_inventory:
+        for material in required_materials:
+            inventory = db.query(models.Inventory).filter(
+                models.Inventory.material_id == material["id"]
+            ).first()
+            
+            if not inventory:
+                raise HTTPException(status_code=404, detail=f"Material {material['id']}의 재고 정보를 찾을 수 없습니다")
+            
+            if inventory.quantity < material["quantity"]:
+                material_info = db.query(models.Material).get(material["id"])
+                material_name = material_info.name if material_info else f"Material {material['id']}"
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"{material_name}의 재고가 부족합니다 (필요: {material['quantity']:.1f}kg, 현재: {inventory.quantity:.1f}kg)"
+                )
     
     return required_materials
 
@@ -270,7 +271,7 @@ def delete_order(order_id: int, db: Session = Depends(get_db), api_key: str = De
         
         # 필요 자재 계산 (삭제니까 같은 수량을 다시 더해줌)
         try:
-            required_materials = calculate_required_materials(order.material_id, order.quantity, db)
+            required_materials = calculate_required_materials(order.material_id, order.quantity, db, check_inventory=False)
             print(f"Required materials calculated: {required_materials}")
         except Exception as calc_error:
             print(f"Error calculating required materials: {calc_error}")
