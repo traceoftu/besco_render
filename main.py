@@ -45,6 +45,31 @@ app.include_router(auth_router)
 def read_root():
     return {"message": "BESCO API Server"}
 
+@app.post("/fix-sequences/")
+def fix_sequences(db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
+    """PostgreSQL 시퀀스 재설정"""
+    try:
+        # 각 테이블의 최대 ID 조회 후 시퀀스 재설정
+        tables = ['customers', 'orders', 'materials', 'material_purchases', 'inventories']
+        
+        for table in tables:
+            # 최대 ID 조회
+            result = db.execute(text(f"SELECT COALESCE(MAX(id), 0) FROM {table}")).scalar()
+            max_id = result if result else 0
+            
+            # 시퀀스 재설정
+            sequence_name = f"{table}_id_seq"
+            new_value = max_id + 1
+            db.execute(text(f"SELECT setval('{sequence_name}', {new_value}, false)"))
+            print(f"Reset {sequence_name} to {new_value}")
+        
+        db.commit()
+        return {"message": "All sequences have been reset successfully"}
+    except Exception as e:
+        db.rollback()
+        print(f"Error fixing sequences: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fixing sequences: {str(e)}")
+
 # Customer endpoints (보안 적용)
 @app.get("/customers/", response_model=List[schemas.Customer])
 def get_customers(db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
@@ -67,9 +92,11 @@ def create_customer(customer: schemas.CustomerCreate, db: Session = Depends(get_
         # 새 고객 생성
         try:
             from datetime import datetime
-            customer_data = customer.dict()
-            customer_data['created_at'] = datetime.utcnow()
-            db_customer = models.Customer(**customer_data)
+            # ID를 명시적으로 설정하지 않고 데이터베이스가 자동 생성하도록 함
+            db_customer = models.Customer(
+                name=customer.name,
+                created_at=datetime.utcnow()
+            )
             print(f"Customer model created: {db_customer.name}")
         except Exception as model_error:
             print(f"Error creating customer model: {model_error}")
