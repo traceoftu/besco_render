@@ -56,17 +56,40 @@ def get_customers(db: Session = Depends(get_db), api_key: str = Depends(verify_a
 @app.post("/customers/", response_model=schemas.Customer)
 def create_customer(customer: schemas.CustomerCreate, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
+        print(f"Attempting to create customer: {customer.name}")
+        
+        # 기존 고객 확인
         db_customer = db.query(models.Customer).filter(models.Customer.name == customer.name).first()
         if db_customer:
+            print(f"Customer {customer.name} already exists")
             raise HTTPException(status_code=400, detail="Customer already exists")
         
-        db_customer = models.Customer(**customer.dict())
-        db.add(db_customer)
-        db.commit()
-        return db_customer
-    except Exception as e:
+        # 새 고객 생성
+        try:
+            db_customer = models.Customer(**customer.dict())
+            print(f"Customer model created: {db_customer.name}")
+        except Exception as model_error:
+            print(f"Error creating customer model: {model_error}")
+            raise model_error
+        
+        try:
+            db.add(db_customer)
+            db.commit()
+            print(f"Customer {customer.name} created successfully")
+            return db_customer
+        except Exception as db_error:
+            print(f"Database error: {db_error}")
+            raise db_error
+            
+    except HTTPException as http_e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise http_e
+    except Exception as e:
+        print(f"Unexpected error creating customer: {type(e).__name__}: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.delete("/customers/{name}")
 def delete_customer(name: str, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
