@@ -258,26 +258,51 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db), api_
 @app.delete("/orders/{order_id}")
 def delete_order(order_id: int, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
+        print(f"Attempting to delete order with ID: {order_id}")
+        
         # 주문 조회
         order = db.query(models.Order).filter(models.Order.id == order_id).first()
         if not order:
+            print(f"Order with ID {order_id} not found")
             raise HTTPException(status_code=404, detail="Order not found")
         
+        print(f"Found order: {order.id}, material_id: {order.material_id}, quantity: {order.quantity}")
+        
         # 필요 자재 계산 (삭제니까 같은 수량을 다시 더해줌)
-        required_materials = calculate_required_materials(order.material_id, order.quantity, db)
+        try:
+            required_materials = calculate_required_materials(order.material_id, order.quantity, db)
+            print(f"Required materials calculated: {required_materials}")
+        except Exception as calc_error:
+            print(f"Error calculating required materials: {calc_error}")
+            raise calc_error
         
         # 재고 증가
-        update_inventory_quantities(required_materials, True, db)
+        try:
+            update_inventory_quantities(required_materials, True, db)
+            print("Inventory quantities updated successfully")
+        except Exception as inventory_error:
+            print(f"Error updating inventory: {inventory_error}")
+            raise inventory_error
         
         # 주문 삭제
-        db.delete(order)
-        db.commit()
+        try:
+            db.delete(order)
+            db.commit()
+            print(f"Order {order_id} deleted successfully")
+        except Exception as delete_error:
+            print(f"Error deleting order from database: {delete_error}")
+            raise delete_error
         
         return {"message": "Order deleted successfully"}
-    except Exception as e:
-        print(f"Error deleting order: {e}")
+    except HTTPException as http_e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise http_e
+    except Exception as e:
+        print(f"Unexpected error deleting order: {type(e).__name__}: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 # Material endpoints
 @app.get("/materials/", response_model=List[schemas.Material])
