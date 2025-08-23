@@ -66,7 +66,10 @@ def create_customer(customer: schemas.CustomerCreate, db: Session = Depends(get_
         
         # 새 고객 생성
         try:
-            db_customer = models.Customer(**customer.dict())
+            from datetime import datetime
+            customer_data = customer.dict()
+            customer_data['created_at'] = datetime.utcnow()
+            db_customer = models.Customer(**customer_data)
             print(f"Customer model created: {db_customer.name}")
         except Exception as model_error:
             print(f"Error creating customer model: {model_error}")
