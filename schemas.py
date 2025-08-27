@@ -64,7 +64,7 @@ class MaterialBase(BaseModel):
     processing_ratio: float = 1.0
 
 class MaterialCreate(MaterialBase):
-    pass
+    components: Optional[List[BlendComponentCreate]] = None
 
 class Material(MaterialBase):
     id: int

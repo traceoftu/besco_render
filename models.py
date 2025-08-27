@@ -67,6 +67,19 @@ class MaterialPurchase(Base):
     
     material = relationship("Material", back_populates="purchases")
 
+class BlendComponent(Base):
+    __tablename__ = "blend_components"
+
+    id = Column(Integer, primary_key=True, index=True)
+    blend_id = Column(Integer, ForeignKey("materials.id", ondelete="CASCADE"), index=True)
+    component_id = Column(Integer, ForeignKey("materials.id", ondelete="CASCADE"), index=True)
+    ratio = Column(Float)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    blend = relationship("Material", foreign_keys=[blend_id])
+    component = relationship("Material", foreign_keys=[component_id])
+
 class Inventory(Base):
     __tablename__ = "inventory"
 
