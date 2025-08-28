@@ -265,20 +265,22 @@ def get_orders_bulk(
             # 날짜순 정렬 (오래된 것부터)
             sorted_orders = sorted(customer_orders, key=lambda x: x["order_date"] if x["order_date"] else "1900-01-01")
             
-            # 기본 통계
-            total_orders = len(sorted_orders)
+            # 기본 통계 - 같은 날짜 주문을 1건으로 계산
+            unique_dates = set(order["order_date"] for order in sorted_orders if order["order_date"])
+            total_orders = len(unique_dates)
             total_quantity = sum(order["quantity"] for order in sorted_orders)
             avg_quantity = total_quantity / total_orders if total_orders > 0 else 0
             
             # 마지막 주문일
             last_order_date = sorted_orders[-1]["order_date"] if sorted_orders else None
             
-            # 주문 간격 계산
+            # 주문 간격 계산 - 고유 날짜만 사용
+            unique_dates_list = sorted(list(unique_dates))
             intervals = []
-            if len(sorted_orders) > 1:
-                for i in range(1, len(sorted_orders)):
-                    prev_date = datetime.strptime(sorted_orders[i-1]["order_date"], "%Y-%m-%d")
-                    curr_date = datetime.strptime(sorted_orders[i]["order_date"], "%Y-%m-%d")
+            if len(unique_dates_list) > 1:
+                for i in range(1, len(unique_dates_list)):
+                    prev_date = datetime.strptime(unique_dates_list[i-1], "%Y-%m-%d")
+                    curr_date = datetime.strptime(unique_dates_list[i], "%Y-%m-%d")
                     interval = (curr_date - prev_date).days
                     if interval > 0:  # 같은 날 주문 제외
                         intervals.append(interval)
