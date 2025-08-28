@@ -489,7 +489,9 @@ def create_material(material: schemas.MaterialCreate, db: Session = Depends(get_
         db_inventory = models.Inventory(
             material_id=db_material.id,
             quantity=0,
-            safety_stock=0
+            safety_stock=0,
+            created_at=func.now(),
+            updated_at=func.now()
         )
         db.add(db_inventory)
         print("Inventory created")
