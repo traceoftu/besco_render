@@ -595,8 +595,24 @@ def update_material(material_id: int, body: dict = Body(...), db: Session = Depe
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/materials/{material_id}/ratio/")
-@app.put("/api/materials/{material_id}/ratio/")
 def update_material_ratio(material_id: int, processing_ratio: float = Body(..., embed=True), db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
+    try:
+        db_material = db.query(models.Material).filter(models.Material.id == material_id).first()
+        if not db_material:
+            raise HTTPException(status_code=404, detail="Material not found")
+
+        db_material.processing_ratio = processing_ratio
+        db_material.updated_at = text('NOW()')
+        db.commit()
+        
+        return {"message": "Material ratio updated successfully"}
+    except Exception as e:
+        print(f"Error updating material ratio: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/materials/{material_id}/ratio/")
+def update_material_ratio_api(material_id: int, processing_ratio: float = Body(..., embed=True), db: Session = Depends(get_db)):
     try:
         db_material = db.query(models.Material).filter(models.Material.id == material_id).first()
         if not db_material:
