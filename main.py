@@ -628,10 +628,13 @@ def get_material_purchases(db: Session = Depends(get_db), api_key: str = Depends
 @app.post("/material-purchases/", response_model=schemas.MaterialPurchase)
 def create_material_purchase(purchase: schemas.MaterialPurchaseCreate, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
+        print(f"Creating material purchase: {purchase.dict()}")
+        
         # 자재 확인
         db_material = db.query(models.Material).filter(models.Material.id == purchase.material_id).first()
         if not db_material:
             raise HTTPException(status_code=404, detail="Material not found")
+        print(f"Material found: {db_material.name}")
         
         # 날짜 처리
         if isinstance(purchase.purchase_date, str):
@@ -646,38 +649,51 @@ def create_material_purchase(purchase: schemas.MaterialPurchaseCreate, db: Sessi
                     raise HTTPException(status_code=400, detail="Invalid date format. Use ISO 8601 or YYYY-MM-DD")
         else:
             purchase_date = purchase.purchase_date
+        print(f"Purchase date processed: {purchase_date}")
         
         # 구매 데이터 생성
         purchase_data = purchase.dict()
         purchase_data["material_name"] = db_material.name  # 자재 이름 추가
         purchase_data["purchase_date"] = purchase_date
+        purchase_data["created_at"] = func.now()  # created_at 추가
         
         # 총 가격이 없으면 계산
         if not purchase_data.get("total_price"):
             purchase_data["total_price"] = purchase_data["quantity_kg"] * purchase_data["price_per_kg"]
         
+        print(f"Purchase data prepared: {purchase_data}")
         db_purchase = models.MaterialPurchase(**purchase_data)
         db.add(db_purchase)
         db.commit()
         db.refresh(db_purchase)
+        print("Material purchase created successfully")
         
         # 재고 업데이트 또는 생성
         db_inventory = db.query(models.Inventory).filter(models.Inventory.material_id == purchase.material_id).first()
         if db_inventory:
+            print(f"Updating existing inventory: {db_inventory.quantity} + {purchase.quantity_kg}")
             db_inventory.quantity += purchase.quantity_kg
+            db_inventory.updated_at = func.now()
         else:
+            print("Creating new inventory record")
             db_inventory = models.Inventory(
                 material_id=purchase.material_id,
                 quantity=purchase.quantity_kg,
-                safety_stock=0
+                safety_stock=0,
+                created_at=func.now(),
+                updated_at=func.now()
             )
             db.add(db_inventory)
         
         db.commit()
+        print("Material purchase completed successfully")
         return db_purchase
     except Exception as e:
+        print(f"Error creating material purchase: {type(e).__name__}: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error creating material purchase: {str(e)}")
 
 @app.delete("/material-purchases/{purchase_id}")
 def delete_material_purchase(purchase_id: int, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
