@@ -399,7 +399,7 @@ def delete_order(order_id: int, db: Session = Depends(get_db), api_key: str = De
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 # Material endpoints
-@app.get("/materials/", response_model=List[schemas.Material])
+@app.get("/api/materials/", response_model=List[schemas.Material])
 def get_materials(db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         materials = db.query(models.Material).all()
@@ -421,7 +421,7 @@ def get_materials(db: Session = Depends(get_db), api_key: str = Depends(verify_a
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/materials/{material_id}")
+@app.get("/api/materials/{material_id}")
 def get_material_by_id_endpoint(material_id: int, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         material = db.query(models.Material).filter(models.Material.id == material_id).first()
@@ -456,7 +456,7 @@ def get_material_by_id_endpoint(material_id: int, db: Session = Depends(get_db),
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/materials/", response_model=schemas.Material)
+@app.post("/api/materials/", response_model=schemas.Material)
 def create_material(material: schemas.MaterialCreate, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         print(f"Creating material: {material.dict()}")
@@ -507,7 +507,7 @@ def create_material(material: schemas.MaterialCreate, db: Session = Depends(get_
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error creating material: {str(e)}")
 
-@app.get("/materials/{material_id}/components", response_model=List[schemas.BlendComponent])
+@app.get("/api/materials/{material_id}/components", response_model=List[schemas.BlendComponent])
 def get_blend_components(material_id: int, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     """블렌드 자재의 컴포넌트 조회"""
     try:
@@ -526,7 +526,7 @@ def get_blend_components(material_id: int, db: Session = Depends(get_db), api_ke
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.put("/materials/{material_id}/components")
+@app.put("/api/materials/{material_id}/components")
 def update_blend_components(
     material_id: int, 
     components: List[schemas.BlendComponentCreate], 
@@ -562,7 +562,7 @@ def update_blend_components(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.put("/materials/{material_id}/", response_model=schemas.Material)
+@app.put("/api/materials/{material_id}/", response_model=schemas.Material)
 def update_material(material_id: int, body: dict = Body(...), db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         db_material = db.query(models.Material).filter(models.Material.id == material_id).first()
@@ -594,7 +594,7 @@ def update_material(material_id: int, body: dict = Body(...), db: Session = Depe
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.put("/materials/{material_id}/ratio/")
+@app.put("/api/materials/{material_id}/ratio/")
 def update_material_ratio(material_id: int, processing_ratio: float = Body(..., embed=True), db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
         db_material = db.query(models.Material).filter(models.Material.id == material_id).first()
