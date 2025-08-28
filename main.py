@@ -45,12 +45,52 @@ app.include_router(auth_router)
 def read_root():
     return {"message": "BESCO API Server"}
 
+@app.post("/migrate-blend-components/")
+def migrate_blend_components(db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
+    """BlendComponent 테이블 생성 마이그레이션"""
+    try:
+        # 테이블 존재 여부 확인
+        check_sql = """
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_name = 'blend_components'
+        );
+        """
+        exists = db.execute(text(check_sql)).scalar()
+        
+        if exists:
+            return {"message": "blend_components 테이블이 이미 존재합니다"}
+        
+        # BlendComponent 테이블 생성
+        create_table_sql = """
+        CREATE TABLE blend_components (
+            id SERIAL PRIMARY KEY,
+            blend_id INTEGER NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+            component_id INTEGER NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+            ratio FLOAT NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        
+        CREATE INDEX idx_blend_components_blend_id ON blend_components(blend_id);
+        CREATE INDEX idx_blend_components_component_id ON blend_components(component_id);
+        """
+        
+        db.execute(text(create_table_sql))
+        db.commit()
+        
+        return {"message": "blend_components 테이블이 성공적으로 생성되었습니다"}
+    except Exception as e:
+        db.rollback()
+        print(f"Error creating blend_components table: {e}")
+        raise HTTPException(status_code=500, detail=f"Error creating table: {str(e)}")
+
 @app.post("/fix-sequences/")
 def fix_sequences(db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     """PostgreSQL 시퀀스 재설정"""
     try:
         # 각 테이블의 최대 ID 조회 후 시퀀스 재설정
-        tables = ['customers', 'orders', 'materials', 'material_purchases', 'inventories']
+        tables = ['customers', 'orders', 'materials', 'material_purchases', 'inventories', 'blend_components']
         
         for table in tables:
             # 최대 ID 조회
@@ -419,6 +459,8 @@ def get_material_by_id_endpoint(material_id: int, db: Session = Depends(get_db),
 @app.post("/materials/", response_model=schemas.Material)
 def create_material(material: schemas.MaterialCreate, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
+        print(f"Creating material: {material.dict()}")
+        
         # 자재 생성
         db_material = models.Material(
             name=material.name,
@@ -430,9 +472,11 @@ def create_material(material: schemas.MaterialCreate, db: Session = Depends(get_
         )
         db.add(db_material)
         db.flush()  # ID 생성을 위해 flush
+        print(f"Material created with ID: {db_material.id}")
         
         # 블렌드 타입인 경우 컴포넌트 추가
         if material.type == "blend" and material.components:
+            print(f"Adding blend components: {material.components}")
             for component in material.components:
                 db_component = models.BlendComponent(
                     blend_id=db_material.id,
@@ -448,13 +492,18 @@ def create_material(material: schemas.MaterialCreate, db: Session = Depends(get_
             safety_stock=0
         )
         db.add(db_inventory)
+        print("Inventory created")
         
         db.commit()
         db.refresh(db_material)
+        print("Material creation completed successfully")
         return db_material
     except Exception as e:
+        print(f"Error creating material: {type(e).__name__}: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error creating material: {str(e)}")
 
 @app.get("/materials/{material_id}/components", response_model=List[schemas.BlendComponent])
 def get_blend_components(material_id: int, db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
