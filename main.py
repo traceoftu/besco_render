@@ -207,6 +207,56 @@ def get_orders(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/orders/bulk/")
+def get_orders_bulk(
+    customer_names: str = None,  # 쉼표로 구분된 고객명 리스트
+    start_date: str = None,
+    end_date: str = None,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(verify_api_key)
+):
+    """여러 고객의 주문 데이터를 한 번에 조회"""
+    try:
+        query = db.query(models.Order)
+        
+        # 여러 고객 필터링
+        if customer_names:
+            customer_list = [name.strip() for name in customer_names.split(',')]
+            query = query.filter(models.Order.customer_name.in_(customer_list))
+            
+        # 기간 필터링
+        if start_date:
+            start = datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.filter(models.Order.order_date >= start)
+        if end_date:
+            end = datetime.strptime(end_date, "%Y-%m-%d")
+            query = query.filter(models.Order.order_date <= end)
+            
+        # 주문일자 기준 내림차순 정렬
+        query = query.order_by(models.Order.customer_name, models.Order.order_date.desc())
+        
+        orders = query.all()
+        
+        # 고객별로 그룹화
+        result = {}
+        for order in orders:
+            if order.customer_name not in result:
+                result[order.customer_name] = []
+            result[order.customer_name].append({
+                "id": order.id,
+                "material_id": order.material_id,
+                "material_name": order.material_name,
+                "quantity": order.quantity,
+                "price_per_kg": order.price_per_kg,
+                "total_price": order.total_price,
+                "order_date": order.order_date.strftime("%Y-%m-%d") if order.order_date else None,
+                "created_at": order.created_at
+            })
+        
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 def calculate_required_materials(material_id: int, quantity: float, db: Session, check_inventory: bool = True) -> List[dict]:
     """자재 타입에 따른 필요 원재료 계산"""
     material = db.query(models.Material).filter(models.Material.id == material_id).first()
