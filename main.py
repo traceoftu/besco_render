@@ -215,8 +215,10 @@ def get_orders_bulk(
     db: Session = Depends(get_db),
     api_key: str = Depends(verify_api_key)
 ):
-    """여러 고객의 주문 데이터를 한 번에 조회"""
+    """여러 고객의 주문 데이터를 한 번에 조회 (예측 분석 포함)"""
     try:
+        from datetime import timedelta
+        
         query = db.query(models.Order)
         
         # 여러 고객 필터링
@@ -237,12 +239,13 @@ def get_orders_bulk(
         
         orders = query.all()
         
-        # 고객별로 그룹화
+        # 고객별로 그룹화 및 예측 분석
         result = {}
         for order in orders:
-            if order.customer_name not in result:
-                result[order.customer_name] = []
-            result[order.customer_name].append({
+            customer_name = order.customer_name
+            if customer_name not in result:
+                result[customer_name] = []
+            result[customer_name].append({
                 "id": order.id,
                 "material_id": order.material_id,
                 "material_name": order.material_name,
@@ -252,6 +255,58 @@ def get_orders_bulk(
                 "order_date": order.order_date.strftime("%Y-%m-%d") if order.order_date else None,
                 "created_at": order.created_at
             })
+        
+        # 각 고객별 예측 분석 계산 및 추가
+        for customer_name in result:
+            customer_orders = result[customer_name]
+            if not customer_orders:
+                continue
+                
+            # 날짜순 정렬 (오래된 것부터)
+            sorted_orders = sorted(customer_orders, key=lambda x: x["order_date"] if x["order_date"] else "1900-01-01")
+            
+            # 기본 통계
+            total_orders = len(sorted_orders)
+            total_quantity = sum(order["quantity"] for order in sorted_orders)
+            avg_quantity = total_quantity / total_orders if total_orders > 0 else 0
+            
+            # 마지막 주문일
+            last_order_date = sorted_orders[-1]["order_date"] if sorted_orders else None
+            
+            # 주문 간격 계산
+            intervals = []
+            if len(sorted_orders) > 1:
+                for i in range(1, len(sorted_orders)):
+                    prev_date = datetime.strptime(sorted_orders[i-1]["order_date"], "%Y-%m-%d")
+                    curr_date = datetime.strptime(sorted_orders[i]["order_date"], "%Y-%m-%d")
+                    interval = (curr_date - prev_date).days
+                    if interval > 0:  # 같은 날 주문 제외
+                        intervals.append(interval)
+            
+            avg_interval = sum(intervals) / len(intervals) if intervals else 0
+            
+            # 다음 예상 주문일
+            next_expected_date = None
+            d_day = None
+            if last_order_date and avg_interval > 0:
+                last_date = datetime.strptime(last_order_date, "%Y-%m-%d")
+                next_expected_date = (last_date + timedelta(days=int(avg_interval))).strftime("%Y-%m-%d")
+                
+                # D-DAY 계산 (오늘 기준)
+                today = datetime.now().date()
+                expected_date = datetime.strptime(next_expected_date, "%Y-%m-%d").date()
+                d_day = (expected_date - today).days
+            
+            # 분석 결과를 고객 데이터에 추가
+            result[customer_name] = {
+                "orders": customer_orders,
+                "마지막주문일": last_order_date,
+                "다음예상주문일": next_expected_date,
+                "평균주문간격": round(avg_interval, 1) if avg_interval > 0 else 0,
+                "평균주문수량": round(avg_quantity, 1),
+                "D_DAY": d_day,
+                "총주문횟수": total_orders
+            }
         
         return result
     except Exception as e:
