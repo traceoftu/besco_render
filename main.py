@@ -85,6 +85,10 @@ def migrate_blend_components(db: Session = Depends(get_db), api_key: str = Depen
         print(f"Error creating blend_components table: {e}")
         raise HTTPException(status_code=500, detail=f"Error creating table: {str(e)}")
 
+@app.post("/fix-sequences/")
+def fix_sequences(db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
+    """PostgreSQL 시퀀스 재설정"""
+    try:
         # 가장 중요한 테이블들만 우선 처리
         tables = ['customers', 'orders', 'materials', 'material_purchases', 'inventory']
         reset_count = 0
