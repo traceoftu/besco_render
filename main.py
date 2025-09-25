@@ -121,7 +121,7 @@ def fix_sequences(db: Session = Depends(get_db), api_key: str = Depends(verify_a
 @app.get("/customers/", response_model=List[schemas.Customer])
 def get_customers(db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
     try:
-        return db.query(models.Customer).all()
+        return db.query(models.Customer).order_by(models.Customer.name).all()
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal server error")
 
