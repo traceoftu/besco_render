@@ -85,26 +85,29 @@ def migrate_blend_components(db: Session = Depends(get_db), api_key: str = Depen
         print(f"Error creating blend_components table: {e}")
         raise HTTPException(status_code=500, detail=f"Error creating table: {str(e)}")
 
-@app.post("/fix-sequences/")
-def fix_sequences(db: Session = Depends(get_db), api_key: str = Depends(verify_api_key)):
-    """PostgreSQL 시퀀스 재설정"""
-    try:
-        # 각 테이블의 최대 ID 조회 후 시퀀스 재설정
-        tables = ['customers', 'orders', 'materials', 'material_purchases', 'inventories', 'blend_components']
+        # 가장 중요한 테이블들만 우선 처리
+        tables = ['customers', 'orders', 'materials', 'material_purchases', 'inventory']
+        reset_count = 0
         
         for table in tables:
-            # 최대 ID 조회
-            result = db.execute(text(f"SELECT COALESCE(MAX(id), 0) FROM {table}")).scalar()
-            max_id = result if result else 0
-            
-            # 시퀀스 재설정
-            sequence_name = f"{table}_id_seq"
-            new_value = max_id + 1
-            db.execute(text(f"SELECT setval('{sequence_name}', {new_value}, false)"))
-            print(f"Reset {sequence_name} to {new_value}")
+            try:
+                # 최대 ID 조회
+                result = db.execute(text(f"SELECT COALESCE(MAX(id), 0) FROM {table}")).scalar()
+                max_id = result if result else 0
+                
+                # 시퀀스 재설정
+                sequence_name = f"{table}_id_seq"
+                new_value = max_id + 1
+                db.execute(text(f"SELECT setval('{sequence_name}', {new_value}, false)"))
+                print(f"Reset {sequence_name} to {new_value}")
+                reset_count += 1
+                
+            except Exception as table_error:
+                print(f"Error processing table {table}: {table_error}")
+                continue
         
         db.commit()
-        return {"message": "All sequences have been reset successfully"}
+        return {"message": f"Successfully reset {reset_count} sequences"}
     except Exception as e:
         db.rollback()
         print(f"Error fixing sequences: {e}")
